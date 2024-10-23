@@ -1,0 +1,25 @@
+/* Add your styles here */
+body {
+    background-color: #f4f4f4;
+}
+
+.container {
+    margin-top: 50px;
+}
+
+#game-area {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.buttons input, .buttons button {
+    margin: 10px;
+}
+
+#sidebar {
+    margin-top: 30px;
+}
+
+#chat-room, #leaderboard {
+    margin-bottom: 20px;
+}
