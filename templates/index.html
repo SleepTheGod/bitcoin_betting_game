@@ -44,10 +44,6 @@
         const socket = io();
         let currentMultiplier = 1.00;
         let crashPoint;
-        let gameInterval;
-        let countdownInterval;
-        let timeLeft = 45;
-        let betPlaced = false;
         let betAmount = 0;
         let userAddress = '';
 
@@ -71,10 +67,6 @@
         }
 
         async function placeBet() {
-            if (!userAddress) {
-                await connectWallet();
-            }
-
             betAmount = parseFloat(document.getElementById('bet-amount').value);
             if (isNaN(betAmount) || betAmount <= 0) {
                 alert('Please enter a valid bet amount');
@@ -91,8 +83,6 @@
 
             const data = await response.json();
             if (response.ok) {
-                socket.emit('bet_event', { user: userAddress, amount: betAmount, multiplier: data.multiplier });
-                betPlaced = true;
                 document.getElementById('betButton').disabled = true;
                 document.getElementById('cashoutButton').disabled = false;
                 document.getElementById('message').innerText = 'Bet placed! Waiting for the right time to cash out...';
@@ -101,78 +91,43 @@
             }
         }
 
-        socket.on('update_bets', (data) => {
-            const betElem = document.createElement('div');
-            betElem.innerText = `${data.user} placed a bet of ${data.amount} BTC at ${data.multiplier.toFixed(2)}x!`;
-            document.getElementById('live-bets').appendChild(betElem);
+        async function cashOut() {
+            const response = await fetch('/cash_out', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ user_id: userAddress })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                document.getElementById('cashoutButton').disabled = true;
+                document.getElementById('message').innerText = `Cashed out! New balance: ${data.balance} BTC`;
+            } else {
+                alert(data.message);
+            }
+        }
+
+        // Real-time updates from the server
+        socket.on('update_multiplier', (data) => {
+            currentMultiplier = data.multiplier;
+            document.getElementById('multiplier').innerText = `${currentMultiplier.toFixed(2)}x`;
         });
 
-        function cashOut() {
-            if (betPlaced && currentMultiplier < crashPoint) {
-                const payout = betAmount * currentMultiplier;
-                document.getElementById('message').innerText = `Cashed out at ${currentMultiplier.toFixed(2)}x! You win ${payout.toFixed(8)} BTC!`;
-                resetGame();
-            } else {
-                document.getElementById('message').innerText = `Missed the cash out! The game crashed at ${crashPoint}x.`;
-            }
-        }
-
-        function startGame() {
-            resetGame();
-            crashPoint = (Math.random() * 8 + 2).toFixed(2);
-            gameInterval = setInterval(updateMultiplier, 100);
-        }
-
-        function updateMultiplier() {
-            currentMultiplier += 0.01;
-            document.getElementById('multiplier').innerText = `${currentMultiplier.toFixed(2)}x`;
-
-            if (currentMultiplier >= crashPoint) {
-                clearInterval(gameInterval);
-                document.getElementById('message').innerText = `Game crashed at ${crashPoint}x!`;
-                resetGame();
-            }
-        }
-
-        function resetGame() {
-            clearInterval(gameInterval);
-            document.getElementById('bet-amount').value = '';
-            betPlaced = false;
-            currentMultiplier = 1.00;
-            crashPoint = 0;
+        socket.on('crash', (data) => {
             document.getElementById('cashoutButton').disabled = true;
             document.getElementById('betButton').disabled = false;
-            startCountdown();
-        }
-
-        function startCountdown() {
-            timeLeft = 45;
-            countdownInterval = setInterval(() => {
-                timeLeft--;
-                document.getElementById('countdown').innerText = `Next round in: ${timeLeft}s`;
-                if (timeLeft <= 0) {
-                    clearInterval(countdownInterval);
-                    startGame();
-                }
-            }, 1000);
-        }
-
-        function sendMessage(event) {
-            if (event.key === 'Enter') {
-                const input = document.getElementById('chat-input');
-                const message = input.value;
-                socket.emit('chat_message', { user: userAddress, message });
-                input.value = '';
-            }
-        }
-
-        socket.on('chat_message', (data) => {
-            const chatMessageElem = document.createElement('div');
-            chatMessageElem.innerText = `${data.user}: ${data.message}`;
-            document.getElementById('chat-messages').appendChild(chatMessageElem);
+            document.getElementById('message').innerText = `Crashed at ${data.crash_point}x!`;
         });
 
-        startGame();
+        socket.on('new_round', () => {
+            document.getElementById('message').innerText = 'New round starting! Place your bets!';
+        });
+
+        socket.on('user_cash_out', (data) => {
+            document.getElementById('message').innerText = `${data.user} cashed out at ${data.multiplier}x with ${data.cash_out_amount} BTC!`;
+        });
     </script>
 </body>
 </html>
